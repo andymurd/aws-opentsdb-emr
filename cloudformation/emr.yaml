@@ -1,0 +1,140 @@
+---
+  AWSTemplateFormatVersion: '2010-09-09'
+
+  Description: "Creates an EMT Ckuster inside a specified VPC, with two core nodes running HBase"
+  Parameters:
+    EMRClusterName:
+      Description: Name of the cluster
+      Type: String
+      Default: emrcluster
+    MasterInstanceType:
+      Description: Instance type to be used for the master instance.
+      Type: String
+      Default: m3.xlarge
+    CoreInstanceType:
+      Description: Instance type to be used for core instances.
+      Type: String
+      Default: m3.xlarge
+    NumberOfCoreInstances:
+      Description: Must be a valid number
+      Type: Number
+      Default: 2
+    SubnetID:
+      Description: Must be Valid public subnet ID
+      Type: String
+    LogUri:
+      Description: Must be a valid S3 URL
+      Default: s3://aws-opentsdb-logs/
+      Type: String
+    S3DataUri:
+      Description: 'Must be a valid S3 bucket URL '
+      Default: s3://aws-opentsdb-storage/
+      Type: String
+    ReleaseLabel:
+      Description: Must be a valid EMR release  version
+      Default: emr-5.20.0
+      Type: String
+  Mappings: {}
+  Resources:
+    EMRCluster:
+      DependsOn:
+      - EMRClusterServiceRole
+      - EMRClusterinstanceProfileRole
+      - EMRClusterinstanceProfile
+      Type: AWS::EMR::Cluster
+      Properties:
+        Tags:
+          -
+            Key: "Source"
+            Value: "aws-opentsdb-emr"
+          -
+            Key: "Application"
+            Value:
+              Ref: "AWS::StackName"
+          -
+            Key: "Name"
+            Value: !Ref 'EMRClusterName'
+        Applications:
+        - Name: Hbase
+        Configurations:
+        - Classification: hbase-site
+          ConfigurationProperties:
+            hbase.rootdir:
+              Ref: S3DataUri
+        - Classification: hbase
+          ConfigurationProperties:
+            hbase.emr.storageMode: s3
+        Instances:
+          Ec2SubnetId:
+            Ref: SubnetID
+          MasterInstanceGroup:
+            InstanceCount: 1
+            InstanceType:
+              Ref: MasterInstanceType
+            Market: ON_DEMAND
+            Name: Master
+          CoreInstanceGroup:
+            InstanceCount:
+              Ref: NumberOfCoreInstances
+            InstanceType:
+              Ref: CoreInstanceType
+            Market: ON_DEMAND
+            Name: Core
+          TerminationProtected: false
+        VisibleToAllUsers: true
+        JobFlowRole:
+          Ref: EMRClusterinstanceProfile
+        ReleaseLabel:
+          Ref: ReleaseLabel
+        LogUri:
+          Ref: LogUri
+        Name:
+          Ref: EMRClusterName
+        AutoScalingRole: EMR_AutoScaling_DefaultRole
+        ServiceRole:
+          Ref: EMRClusterServiceRole
+    EMRClusterServiceRole:
+      Type: AWS::IAM::Role
+      Properties:
+        AssumeRolePolicyDocument:
+          Version: '2012-10-17'
+          Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+              - elasticmapreduce.amazonaws.com
+            Action:
+            - sts:AssumeRole
+        ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AmazonElasticMapReduceRole
+        Path: "/"
+    EMRClusterinstanceProfileRole:
+      Type: AWS::IAM::Role
+      Properties:
+        AssumeRolePolicyDocument:
+          Version: '2012-10-17'
+          Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+              - ec2.amazonaws.com
+            Action:
+            - sts:AssumeRole
+        ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AmazonElasticMapReduceforEC2Role
+        Path: "/"
+    EMRClusterinstanceProfile:
+      Type: AWS::IAM::InstanceProfile
+      Properties:
+        Path: "/"
+        Roles:
+        - Ref: EMRClusterinstanceProfileRole
+  Outputs:
+
+    VPCId:
+      Description: "ClusterId of EMR Cluster"
+      Value:
+        Ref: "EMRCluster"
+      Export:
+        Name: !Sub "${AWS::Region}-${AWS::StackName}-EMRCluster"
+
