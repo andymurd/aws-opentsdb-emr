@@ -1,0 +1,79 @@
+---
+  AWSTemplateFormatVersion: "2010-09-09"
+
+  Description: "Creates an EC2 instance and installs OpenTSDB"
+  Parameters:
+    InstanceName:
+      Description: The name of the EC2 instance being created.
+      Type: String
+    InstanceType:
+      Description: Instance type to be used for the instance.
+      Type: String
+      Default: m3.large
+    VpcID:
+      Description: Must be Valid VPC ID
+      Type: String
+    SubnetID:
+      Description: Must be Valid public subnet ID inside the same VPC as specified by the VpcID parameter
+      Type: String
+    KeyName:
+      Description: The name of an SSH keypair known to EC2.
+      Type: String
+    HBaseMasterIP:
+      Description: IP address of a running, reachable HBase master
+      Type: String
+      AllowedPattern: (\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})
+    ZookeeperIP:
+      Description: IP address of a running, reachable Zookeeper server
+      Type: String
+      AllowedPattern: (\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})
+    LatestAmiId:
+      Type:  'AWS::SSM::Parameter::Value<AWS::EC2::Image::Id>'
+      Default: '/aws/service/ami-amazon-linux-latest/amzn2-ami-hvm-x86_64-gp2'
+  Resources:
+    EC2Instance:
+      Type: AWS::EC2::Instance
+      Metadata: 
+        AWS::CloudFormation::Init: 
+          config: 
+            commands: 
+              test: 
+                command: "echo \"\n$ZOOKEEPER_IP\tzookeeper-server\n$ZOOKEEPER_IP\tzookeeper-server\n\" >> /etc/hosts"
+                env: 
+                  HBASE_MASTER_IP: !Ref 'HBaseMasterIP'
+                  ZOOKEEPER_IP: !Ref 'ZookeeperIP'
+                cwd: "/"
+                ignoreErrors: "false"
+      Properties:
+        InstanceType: !Ref 'InstanceType'
+        ImageId: !Ref 'LatestAmiId'
+        SubnetId: !Ref 'SubnetID'
+        KeyName: !Ref 'KeyName'
+        Tags:
+          -
+            Key: "Source"
+            Value: "aws-opentsdb-emr"
+          -
+            Key: "Application"
+            Value:
+              Ref: "AWS::StackName"
+          -
+            Key: "Network"
+            Value: "Public"
+          -
+            Key: "Name"
+            Value: !Ref 'InstanceName'
+
+  Outputs:
+    InstanceId:
+      Description: InstanceId of the newly created EC2 instance
+      Value: !Ref 'EC2Instance'
+    AZ:
+      Description: Availability Zone of the newly created EC2 instance
+      Value: !GetAtt [EC2Instance, AvailabilityZone]
+    PublicDNS:
+      Description: Public DNSName of the newly created EC2 instance
+      Value: !GetAtt [EC2Instance, PublicDnsName]
+    PublicIP:
+      Description: Public IP address of the newly created EC2 instance
+      Value: !GetAtt [EC2Instance, PublicIp]
