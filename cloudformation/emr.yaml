@@ -7,6 +7,9 @@
       Description: Name of the cluster
       Type: String
       Default: emrcluster
+    KeyName:
+      Description: The name of an SSH keypair known to EC2.
+      Type: String
     MasterInstanceType:
       Description: Instance type to be used for the master instance.
       Type: String
@@ -65,6 +68,8 @@
           ConfigurationProperties:
             hbase.emr.storageMode: s3
         Instances:
+          Ec2KeyName:
+            Ref: KeyName
           Ec2SubnetId:
             Ref: SubnetID
           MasterInstanceGroup:
